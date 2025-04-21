@@ -1,0 +1,104 @@
+import dash
+from dash import dcc, html
+import plotly.express as px
+import pandas as pd
+import pyodbc
+from dash.dependencies import Input, Output
+
+# SQL Server Connection
+server = 'ICPL-24-25-LAPT'
+database = 'Energy Monitoring_Realtime'
+
+# Fetch Data from SQL Server
+def fetch_data():
+    conn = pyodbc.connect(
+        f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};Trusted_Connection=yes;"
+    )
+    query = """
+    SELECT TOP 10 Date, Time, [Power (KW)], [Consumption (KVAH)], [Power Factor]
+    FROM CoreMaking_Energy
+    ORDER BY Date DESC, Time DESC  -- Fetch last updated entries
+    """
+    df = pd.read_sql(query, conn)
+    conn.close()
+    df['Timestamp'] = pd.to_datetime(df['Date'].astype(str) + ' ' + df['Time'].astype(str))
+    return df
+
+# Fetch Latest Values for Cards
+def fetch_latest_values():
+    conn = pyodbc.connect(
+        f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};Trusted_Connection=yes;"
+    )
+    query = """
+    SELECT TOP 1 [Power (KW)], [Consumption (KVAH)], [Power Factor]
+    FROM CoreMaking_Energy
+    ORDER BY Date DESC, Time DESC
+    """
+    df = pd.read_sql(query, conn)
+    conn.close()
+    return df.iloc[0] if not df.empty else None
+
+# Dash App Setup
+app = dash.Dash(__name__)
+app.layout = html.Div([
+    html.H1("Real-Time Energy Monitoring"),
+    
+    # Charts Row
+    html.Div([
+        dcc.Graph(id='live-line-chart', style={'width': '32%', 'display': 'inline-block'}),
+        dcc.Graph(id='consumption-bar-chart', style={'width': '32%', 'display': 'inline-block'}),
+        dcc.Graph(id='power-factor-chart', style={'width': '32%', 'display': 'inline-block'})
+    ], style={'display': 'flex', 'justify-content': 'space-between'}),
+    
+    # Cards Row
+    html.Div([
+        html.Div(id='power-card', className='card', style={'width': '32%', 'display': 'inline-block', 'padding': '20px', 'background': '#f8f9fa', 'text-align': 'center', 'border-radius': '10px'}),
+        html.Div(id='consumption-card', className='card', style={'width': '32%', 'display': 'inline-block', 'padding': '20px', 'background': '#f8f9fa', 'text-align': 'center', 'border-radius': '10px'}),
+        html.Div(id='power-factor-card', className='card', style={'width': '32%', 'display': 'inline-block', 'padding': '20px', 'background': '#f8f9fa', 'text-align': 'center', 'border-radius': '10px'})
+    ], style={'display': 'flex', 'justify-content': 'space-between', 'margin-top': '20px'}),
+    
+    dcc.Interval(
+        id='interval-component',
+        interval=15000,  # Refresh every 15 secs
+        n_intervals=0
+    )
+])
+
+# Callback to update charts
+@app.callback(
+    [Output('live-line-chart', 'figure'),
+     Output('consumption-bar-chart', 'figure'),
+     Output('power-factor-chart', 'figure')],
+    Input('interval-component', 'n_intervals')
+)
+def update_charts(n):
+    df = fetch_data()
+    if df.empty:
+        return px.line(title="No Data Available"), px.bar(title="No Data Available"), px.line(title="No Data Available")
+    
+    fig1 = px.line(df, x='Timestamp', y='Power (KW)', title="Power (KW) Over Time")
+    fig2 = px.bar(df, x='Timestamp', y='Consumption (KVAH)', title="Consumption Over Time")
+    fig3 = px.line(df, x='Timestamp', y='Power Factor', title="Power Factor Over Time")
+    
+    return fig1, fig2, fig3
+
+# Callback to update cards
+@app.callback(
+    [Output('power-card', 'children'),
+     Output('consumption-card', 'children'),
+     Output('power-factor-card', 'children')],
+    Input('interval-component', 'n_intervals')
+)
+def update_cards(n):
+    latest_values = fetch_latest_values()
+    if latest_values is None:
+        return "Power: N/A", "Consumption: N/A", "Power Factor: N/A"
+    
+    power = f"Current Power: {latest_values['Power (KW)']} KW"
+    consumption = f"Consumption: {latest_values['Consumption (KVAH)']} KVAH"
+    power_factor = f"Power Factor: {latest_values['Power Factor']}"
+    
+    return power, consumption, power_factor
+
+if __name__ == '__main__':
+    app.run_server(debug=True)

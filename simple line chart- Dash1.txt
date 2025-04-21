@@ -1,0 +1,54 @@
+import dash
+from dash import dcc, html
+import plotly.express as px
+import pandas as pd
+import pyodbc
+from dash.dependencies import Input, Output
+
+# SQL Server Connection
+server = 'ICPL-24-25-LAPT'
+database = 'Energy Monitoring_Realtime'
+# username = 'YOUR_USERNAME'
+# password = 'YOUR_PASSWORD'
+
+def fetch_data():
+    conn = pyodbc.connect(
+    f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={'ICPL-24-25-LAPT'};DATABASE={'Energy Monitoring_Realtime'};Trusted_Connection=yes;"
+    )
+    query = """
+    SELECT TOP 10 Date, Time, [Power (KW)]
+    FROM CoreMaking_Energy
+    ORDER BY Date DESC, Time DESC  -- Fetch last updated entries
+    """
+    df = pd.read_sql(query, conn)
+    conn.close()
+    df['Timestamp'] = pd.to_datetime(df['Date'].astype(str) + ' ' + df['Time'].astype(str))
+    return df
+
+# Dash App Setup
+app = dash.Dash(__name__)
+app.layout = html.Div([
+    html.H1("Real-Time Power Consumption"),
+    dcc.Graph(id='live-line-chart'),
+    dcc.Interval(
+        id='interval-component',
+        interval=15000,  # Refresh every 15 secs
+        n_intervals=0
+    )
+])
+
+# Callback to update graph
+@app.callback(
+    Output('live-line-chart', 'figure'),
+    Input('interval-component', 'n_intervals')
+)
+def update_chart(n):
+    df = fetch_data()
+    if df.empty:
+        return px.line(title="No Data Available")
+    fig = px.line(df, x='Timestamp', y='Power (KW)', title="Power (KW) Over Time")
+    fig.update_layout(xaxis_title="Timestamp", yaxis_title="Power (KW)")
+    return fig
+
+if __name__ == '__main__':
+    app.run_server(debug=True)
