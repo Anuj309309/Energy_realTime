@@ -2,170 +2,69 @@ import dash
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 import pandas as pd
-import pyodbc
+import requests
 from dash.dependencies import Input, Output
 import plotly.express as px
 
-# SQL Server Connection Details
-server = 'ICPL-24-25-LAPT'
-database = 'Energy Monitoring_Realtime'
+# Flask server URL
+FLASK_SERVER_URL = 'http://localhost:5000'
 
 # Fetching Latest Energy Data for Cards
 def fetch_latest_energy_data():
-    conn = pyodbc.connect(
-        f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};Trusted_Connection=yes;"
-    )
-    query = "SELECT Process, Power, Consumption, PowerFactor FROM Latest_AllEnergy_Readings_View"
-    df = pd.read_sql(query, conn)
-    conn.close()
-    return df
+    response = requests.get(f'{FLASK_SERVER_URL}/api/latest_energy_data')
+    return pd.DataFrame(response.json())
 
 # Fetching Data for Line Chart
 def fetch_power_view():
-    conn = pyodbc.connect(
-        f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};Trusted_Connection=yes;"
-    )
-    query = """
-    SELECT Date, Time, SUM(Power) AS Total_Power_KW
-    FROM Last9_Energy_Readings_Vw
-    GROUP BY Date, Time
-    ORDER BY Date ASC, Time ASC;
-    """
-    df = pd.read_sql(query, conn)
-    conn.close()
-    
-    df['Timestamp'] = pd.to_datetime(df['Date'].astype(str) + ' ' + df['Time'].astype(str))
+    response = requests.get(f'{FLASK_SERVER_URL}/api/power_view')
+    df = pd.DataFrame(response.json())
+    df['Timestamp'] = pd.to_datetime(df['Timestamp'])
     return df
 
 # Fetching Data for Daily Consumption Bar Chart
 def fetch_daily_consumption():
-    conn = pyodbc.connect(
-        f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};Trusted_Connection=yes;"
-    )
-    query = "SELECT Date, Total_Consumption FROM Daily_Consumption_View ORDER BY Date ASC"
-    df = pd.read_sql(query, conn)
-    conn.close()
-    return df
+    response = requests.get(f'{FLASK_SERVER_URL}/api/daily_consumption')
+    return pd.DataFrame(response.json())
 
 # Fetching Data for Daily Production Line Chart
 def fetch_daily_production():
-    conn = pyodbc.connect(
-        f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};Trusted_Connection=yes;"
-    )
-    query = "SELECT Date, Daily_Production FROM Daily_Production_View ORDER BY Date ASC"
-    df = pd.read_sql(query, conn)
-    conn.close()
-    return df
+    response = requests.get(f'{FLASK_SERVER_URL}/api/daily_production')
+    return pd.DataFrame(response.json())
 
-# Fetching Data for current power card card
+# Fetching Data for current power card
 def fetch_currentpower():
-    conn = pyodbc.connect(
-        f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};Trusted_Connection=yes;"
-    )
-    query = "SELECT Round(SUM(Power),1) AS TotalPower FROM Latest_Energy_Reading_View"
-    df = pd.read_sql(query, conn)
-    conn.close()
-    
-    # Ensure the result is not empty and extract the value
-    if not df.empty and df["TotalPower"].notna().iloc[0]:
-        return df["TotalPower"].iloc[0]
-    else:
-        return 0  # Default to 0 if no data is available
-    
+    response = requests.get(f'{FLASK_SERVER_URL}/api/current_power')
+    return response.json()['TotalPower']
 
 # Fetching Data for TodayConsumption card
 def Fetch_TodayConsumption():
-    conn = pyodbc.connect(
-        f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};Trusted_Connection=yes;"
-    )
-    query = "SELECT Top 1 Round([Total_Consumption],1) AS TodayConsumption FROM [Energy Monitoring_Realtime].[dbo].[Daily_Consumption_View] ORDER BY Date Desc;"
-    df = pd.read_sql(query, conn)
-    conn.close()
-    
-    # Ensure the result is not empty and extract the value
-    if not df.empty and df["TodayConsumption"].notna().iloc[0]:
-        return df["TodayConsumption"].iloc[0]
-    else:
-        return 0  # Default to 0 if no data is available
-
+    response = requests.get(f'{FLASK_SERVER_URL}/api/today_consumption')
+    return response.json()['TodayConsumption']
 
 # Fetching Data for TodayProduction card
 def Fetch_TodayProduction():
-    conn = pyodbc.connect(
-        f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};Trusted_Connection=yes;"
-    )
-    query = "SELECT TOP 1 Round([Daily_Production],1) AS TodayProduction FROM [Energy Monitoring_Realtime].[dbo].[Daily_Production_View] ORDER BY Date Desc;"
-    df = pd.read_sql(query, conn)
-    conn.close()
-    
-    # Ensure the result is not empty and extract the value
-    if not df.empty and df["TodayProduction"].notna().iloc[0]:
-        return df["TodayProduction"].iloc[0]
-    else:
-        return 0  # Default to 0 if no data is available
-    
+    response = requests.get(f'{FLASK_SERVER_URL}/api/today_production')
+    return response.json()['TodayProduction']
+
 # Fetching Data for ThisMonthConsumption card
 def Fetch_ThisMonthConsumption():
-    conn = pyodbc.connect(
-        f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};Trusted_Connection=yes;"
-    )
-    query = "SELECT Round(SUM([Total_Consumption]),1) AS ThisMonthConsumption FROM [Energy Monitoring_Realtime].[dbo].[Daily_Consumption_View] WHERE YEAR(Date) = YEAR(GETDATE()) AND MONTH(Date) = MONTH(GETDATE());"
-    df = pd.read_sql(query, conn)
-    conn.close()
-    
-    # Ensure the result is not empty and extract the value
-    if not df.empty and df["ThisMonthConsumption"].notna().iloc[0]:
-        return df["ThisMonthConsumption"].iloc[0]
-    else:
-        return 0  # Default to 0 if no data is available
-    
+    response = requests.get(f'{FLASK_SERVER_URL}/api/this_month_consumption')
+    return response.json()['ThisMonthConsumption']
 
 # Fetching Data for PreviousMonthConsumption card
 def Fetch_PreviousMonthConsumption():
-    conn = pyodbc.connect(
-        f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};Trusted_Connection=yes;"
-    )
-    query = "SELECT Round(SUM([Total_Consumption]),1) AS PreviousMonthConsumption FROM [Energy Monitoring_Realtime].[dbo].[Daily_Consumption_View] WHERE YEAR(Date) = YEAR(DATEADD(MONTH, -1, GETDATE())) AND MONTH(Date) = MONTH(DATEADD(MONTH, -1, GETDATE()));"
-    df = pd.read_sql(query, conn)
-    conn.close()
-    
-    # Ensure the result is not empty and extract the value
-    if not df.empty and df["PreviousMonthConsumption"].notna().iloc[0]:
-        return df["PreviousMonthConsumption"].iloc[0]
-    else:
-        return 0  # Default to 0 if no data is available
-    
+    response = requests.get(f'{FLASK_SERVER_URL}/api/previous_month_consumption')
+    return response.json()['PreviousMonthConsumption']
 
 # Fetching Data for ThisMonthConsumptionPerTonne card
 def Fetch_ThisMonthConsumptionPerTonne():
-    conn = pyodbc.connect(
-        f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};Trusted_Connection=yes;"
-    )
-    query = "SELECT ROUND((SELECT SUM([Total_Consumption]) FROM [Energy Monitoring_Realtime].[dbo].[Daily_Consumption_View] WHERE YEAR(Date) = YEAR(GETDATE()) AND MONTH(Date) = MONTH(GETDATE())) / (SELECT SUM([Daily_Production])/1000 FROM [Energy Monitoring_Realtime].[dbo].[Daily_Production_View] WHERE YEAR(Date) = YEAR(GETDATE()) AND MONTH(Date) = MONTH(GETDATE())),1) AS ThisMonthConsumptionPerTonne;"
-    df = pd.read_sql(query, conn)
-    conn.close()
-    
-    # Ensure the result is not empty and extract the value
-    if not df.empty and df["ThisMonthConsumptionPerTonne"].notna().iloc[0]:
-        return df["ThisMonthConsumptionPerTonne"].iloc[0]
-    else:
-        return 0  # Default to 0 if no data is available
-    
+    response = requests.get(f'{FLASK_SERVER_URL}/api/this_month_consumption_per_tonne')
+    return response.json()['ThisMonthConsumptionPerTonne']
 
 # Fetching Data for PreviousMonthConsumptionPerTonne card
 def Fetch_PreviousMonthConsumptionPerTonne():
-    conn = pyodbc.connect(
-        f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};Trusted_Connection=yes;"
-    )
-    query = "SELECT ROUND((SELECT SUM([Total_Consumption]) FROM [Energy Monitoring_Realtime].[dbo].[Daily_Consumption_View] WHERE YEAR(Date) = YEAR(GETDATE()) AND MONTH(Date) = MONTH(GETDATE()) - 1) / (SELECT SUM([Daily_Production])/1000 FROM [Energy Monitoring_Realtime].[dbo].[Daily_Production_View] WHERE YEAR(Date) = YEAR(GETDATE()) AND MONTH(Date) = MONTH(GETDATE()) - 1),1) AS PreviousMonthConsumptionPerTonne;"
-    df = pd.read_sql(query, conn)
-    conn.close()
-    
-    # Ensure the result is not empty and extract the value
-    if not df.empty and df["PreviousMonthConsumptionPerTonne"].notna().iloc[0]:
-        return df["PreviousMonthConsumptionPerTonne"].iloc[0]
-    else:
-        return 0  # Default to 0 if no data is available
+    response = requests.get(f'{FLASK_SERVER_URL}/api/previous_month_consumption_per_tonne')
+    return response.json()['PreviousMonthConsumptionPerTonne']
 
 # Dash App Initialization
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
