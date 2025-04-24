@@ -8,7 +8,7 @@ import time
 
 
 # Parameters
-start_date = datetime(2025, 3, 1)
+start_date = datetime(2025, 4, 20)
 end_date = datetime(2025, 5, 20)
 working_hours = range(9, 18)  # 9 AM to 6 PM
 days_of_week = [0, 1, 2, 3, 4, 5]  # Monday to Saturday
@@ -107,17 +107,30 @@ df = df[['ID', 'Station', 'Date', 'Time', 'Power Factor', 'Power (KW)', 'Reading
 
 
 # SQL Server connection details
-server = 'ICPL-24-25-LAPT'
-database = 'Energy Monitoring_Realtime'
-
+server = 'database-2.c5084sk6oq16.ap-south-1.rds.amazonaws.com,1433'
+database = 'EnergyDB'
+username = 'admin'  # Replace with your actual username
+password = 'C4i4anuj'  # Replace with your actual password
 
 # Create the connection
 conn = pyodbc.connect(
-    f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={'ICPL-24-25-LAPT'};DATABASE={'Energy Monitoring_Realtime'};Trusted_Connection=yes;"
+    f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};UID={username};PWD={password};"
 )
 cursor = conn.cursor()
 
+# Check if the table has data
+print("Checking if AuxiliarySystems_Energy table has existing data...")
+cursor.execute("SELECT COUNT(*) FROM AuxiliarySystems_Energy")
+row_count = cursor.fetchone()[0]
 
+if row_count > 0:
+    print(f"Found {row_count} existing rows in AuxiliarySystems_Energy table")
+    print("Deleting all existing rows from AuxiliarySystems_Energy table...")
+    cursor.execute("DELETE FROM AuxiliarySystems_Energy")
+    conn.commit()
+    print("Table cleared successfully")
+else:
+    print("CoreMaking_Energy table is empty, proceeding with data insertion")
 
 # Get today's date
 today = datetime.today().date()
