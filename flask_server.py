@@ -89,7 +89,6 @@ def handle_websocket(ws):
                 logger.debug('Sent current power data')
 
                 # Get today's data
-                logger.debug('Fetching today\'s data...')
                 query = "SELECT Top 1 Round([Total_Consumption],1) AS TodayConsumption FROM [EnergyDB].[dbo].[Daily_Consumption_View] ORDER BY Date Desc;"
                 df = pd.read_sql(query, engine)
                 today_consumption = float(df["TodayConsumption"].iloc[0]) if not df.empty and df["TodayConsumption"].notna().iloc[0] else 0
